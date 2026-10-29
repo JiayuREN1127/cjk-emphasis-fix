@@ -5,14 +5,22 @@ import {
   isWhitespaceOrPunctuation,
 } from "./cjk";
 
-export type EmphasisKind = "em" | "strong" | "strong-em";
+export type EmphasisKind =
+  | "em"
+  | "strong"
+  | "strong-em"
+  | "highlight"
+  | "strike";
+
+export type DelimiterMarker = "*" | "=" | "~";
 
 export interface EmphasisMatch {
   from: number;
   to: number;
   contentFrom: number;
   contentTo: number;
-  delimiterLength: 1 | 2 | 3;
+  delimiterLength: number;
+  marker: DelimiterMarker;
   kind: EmphasisKind;
   cjkRelated: boolean;
 }
@@ -22,12 +30,33 @@ export interface TextMask {
   to: number;
 }
 
+interface ScanPass {
+  expression: RegExp;
+  delimiterLength: number;
+  marker: DelimiterMarker;
+  kind: EmphasisKind;
+}
+
+/**
+ * Order matters: longer asterisk runs must win before shorter ones.
+ * Highlight and strikethrough use their own marker characters so they never
+ * compete with emphasis, but they still run after it so nested markup stays
+ * untouched.
+ */
+const SCAN_PASSES: ScanPass[] = [
+  { expression: /\*\*\*(.+?)\*\*\*/g, delimiterLength: 3, marker: "*", kind: "strong-em" },
+  { expression: /\*\*(.+?)\*\*/g, delimiterLength: 2, marker: "*", kind: "strong" },
+  { expression: /\*([^*\n]+)\*/g, delimiterLength: 1, marker: "*", kind: "em" },
+  { expression: /==(.+?)==/g, delimiterLength: 2, marker: "=", kind: "highlight" },
+  { expression: /~~(.+?)~~/g, delimiterLength: 2, marker: "~", kind: "strike" },
+];
+
 function overlaps(a: TextMask, b: TextMask): boolean {
   return a.from < b.to && b.from < a.to;
 }
 
-function isStarAt(text: string, index: number): boolean {
-  return index >= 0 && index < text.length && text[index] === "*";
+function isMarkerAt(text: string, index: number, marker: DelimiterMarker): boolean {
+  return index >= 0 && index < text.length && text[index] === marker;
 }
 
 function findBacktickMasks(text: string): TextMask[] {
@@ -82,7 +111,7 @@ function isValidCandidate(
   to: number,
   contentFrom: number,
   contentTo: number,
-  delimiterLength: 1 | 2 | 3,
+  pass: ScanPass,
 ): EmphasisMatch | null {
   if (contentFrom >= contentTo) return null;
   const content = text.slice(contentFrom, contentTo);
@@ -108,14 +137,15 @@ function isValidCandidate(
     to,
     contentFrom,
     contentTo,
-    delimiterLength,
-    kind: delimiterLength === 3 ? "strong-em" : delimiterLength === 2 ? "strong" : "em",
+    delimiterLength: pass.delimiterLength,
+    marker: pass.marker,
+    kind: pass.kind,
     cjkRelated,
   };
 }
 
 /**
- * Scan one segment for emphasis delimited by `delimiterLength` asterisks.
+ * Scan one segment for one delimiter type.
  *
  * Lookbehind is avoided on purpose: iOS before 16.4 does not support it, and
  * Obsidian ships on mobile, so the boundary checks are done by index instead.
@@ -124,12 +154,12 @@ function scanWithRegex(
   text: string,
   start: number,
   end: number,
-  expression: RegExp,
-  delimiterLength: 1 | 2 | 3,
+  pass: ScanPass,
   consumed: TextMask[],
 ): EmphasisMatch[] {
   const segment = text.slice(start, end);
   const matches: EmphasisMatch[] = [];
+  const expression = pass.expression;
   expression.lastIndex = 0;
   let match: RegExpExecArray | null;
   while ((match = expression.exec(segment)) !== null) {
@@ -138,19 +168,14 @@ function scanWithRegex(
     const range = { from, to };
     if (consumed.some((item) => overlaps(item, range))) continue;
 
-    // Part of a longer asterisk run, e.g. the inner `**` of `***` or `**a***`.
-    if (isStarAt(text, from - 1) || isStarAt(text, to)) continue;
+    // Part of a longer run of the same marker, e.g. the inner `**` of `***`.
+    if (isMarkerAt(text, from - 1, pass.marker) || isMarkerAt(text, to, pass.marker)) {
+      continue;
+    }
 
-    const contentFrom = from + delimiterLength;
-    const contentTo = to - delimiterLength;
-    const candidate = isValidCandidate(
-      text,
-      from,
-      to,
-      contentFrom,
-      contentTo,
-      delimiterLength,
-    );
+    const contentFrom = from + pass.delimiterLength;
+    const contentTo = to - pass.delimiterLength;
+    const candidate = isValidCandidate(text, from, to, contentFrom, contentTo, pass);
     if (!candidate) continue;
 
     matches.push(candidate);
@@ -172,37 +197,11 @@ export function scanLine(text: string): { matches: EmphasisMatch[]; masks: TextM
   if (cursor < text.length) segments.push({ from: cursor, to: text.length });
 
   for (const segment of segments) {
-    // Strong+italic must be found before strong and italic.
-    matches.push(
-      ...scanWithRegex(
-        text,
-        segment.from,
-        segment.to,
-        /\*\*\*(.+?)\*\*\*/g,
-        3,
-        consumed,
-      ),
-    );
-    matches.push(
-      ...scanWithRegex(
-        text,
-        segment.from,
-        segment.to,
-        /\*\*(.+?)\*\*/g,
-        2,
-        consumed,
-      ),
-    );
-    matches.push(
-      ...scanWithRegex(
-        text,
-        segment.from,
-        segment.to,
-        /\*([^*\n]+)\*/g,
-        1,
-        consumed,
-      ),
-    );
+    for (const pass of SCAN_PASSES) {
+      matches.push(
+        ...scanWithRegex(text, segment.from, segment.to, pass, consumed),
+      );
+    }
   }
 
   return {
@@ -255,7 +254,7 @@ export function findSourceFixes(text: string): SourceFix[] {
 
 /**
  * Scan an entire document for CJK emphasis fixes.
- * Skips fenced code blocks so inline `**` inside code is never touched.
+ * Skips fenced code blocks so inline markers inside code are never touched.
  */
 export function findDocumentFixes(text: string): SourceFix[] {
   const fixes: SourceFix[] = [];

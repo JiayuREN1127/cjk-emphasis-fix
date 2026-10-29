@@ -1,6 +1,6 @@
 {
   "name": "obsidian-cjk-emphasis-fix",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Render bold and italic next to CJK punctuation in Obsidian Live Preview.",
   "scripts": {
     "dev": "node esbuild.config.mjs",

@@ -1,9 +1,9 @@
 {
   "id": "cjk-emphasis-fix",
   "name": "CJK Emphasis Fix",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "minAppVersion": "1.5.0",
-  "description": "Render bold and italic next to CJK punctuation, which otherwise shows up as literal asterisks.",
+  "description": "Render bold, italic, highlight, and strikethrough next to CJK punctuation, where they otherwise show as literal markers.",
   "author": "JiayuREN1127",
   "authorUrl": "https://github.com/JiayuREN1127",
   "isDesktopOnly": false

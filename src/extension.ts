@@ -17,8 +17,14 @@ function collectParserEmphasis(view: EditorView): { from: number; to: number }[]
     enter(node) {
       const name = node.name;
       if (name.includes("formatting")) return;
-      if (!name.includes("strong") && !name.includes("em")) return;
-      // Skip formatting marker nodes like EmphasisMark.
+      const isDelimited =
+        name.includes("strong") ||
+        name.includes("em") ||
+        name.includes("highlight") ||
+        name.includes("strikethrough") ||
+        name.includes("strike");
+      if (!isDelimited) return;
+      // Skip marker nodes such as EmphasisMark or HighlightMark.
       if (name.includes("mark") || name.includes("FormattingMark")) return;
       ranges.push({ from: node.from, to: node.to });
     },
@@ -42,7 +48,24 @@ function buildDecorations(view: EditorView): DecorationSet {
   const strongMark = Decoration.mark({ class: "cm-cjk-strong" });
   const emMark = Decoration.mark({ class: "cm-cjk-emphasis" });
   const strongEmMark = Decoration.mark({ class: "cm-cjk-strong-em" });
+  const highlightMark = Decoration.mark({ class: "cm-cjk-highlight" });
+  const strikeMark = Decoration.mark({ class: "cm-cjk-strike" });
   const hideMarkerMark = Decoration.mark({ class: "cm-cjk-hide-marker" });
+
+  const markFor = (kind: EmphasisMatch["kind"]) => {
+    switch (kind) {
+      case "strong-em":
+        return strongEmMark;
+      case "strong":
+        return strongMark;
+      case "highlight":
+        return highlightMark;
+      case "strike":
+        return strikeMark;
+      default:
+        return emMark;
+    }
+  };
 
   for (const { from, to } of view.visibleRanges) {
     const startLine = doc.lineAt(from).number;
@@ -64,13 +87,7 @@ function buildDecorations(view: EditorView): DecorationSet {
         );
 
         if (!parserHandled) {
-          const mark =
-            match.kind === "strong-em"
-              ? strongEmMark
-              : match.kind === "strong"
-                ? strongMark
-                : emMark;
-          decorations.push(mark.range(cFrom, cTo));
+          decorations.push(markFor(match.kind).range(cFrom, cTo));
         }
 
         if (!(settings.keepMarkersNearCursor && cursorOnLine)) {
@@ -119,6 +136,12 @@ const cjkEmphasisTheme = EditorView.baseTheme({
   ".cm-cjk-strong-em": {
     fontWeight: "bold !important",
     fontStyle: "italic !important",
+  },
+  ".cm-cjk-highlight": {
+    backgroundColor: "var(--text-highlight-bg) !important",
+  },
+  ".cm-cjk-strike": {
+    textDecoration: "line-through !important",
   },
   ".cm-cjk-hide-marker": {
     fontSize: "0 !important",

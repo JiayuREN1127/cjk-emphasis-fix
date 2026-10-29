@@ -20,15 +20,19 @@ This is [CommonMark issue #650](https://github.com/commonmark/commonmark-spec/is
 
 | Markdown | Renders? |
 | --- | --- |
-| `**text。**next` | No — the case this plugin fixes |
+| `**text。**next` | No — bold/italic case this plugin fixes |
+| `==text。==next` | No — highlight |
+| `~~text。~~next` | No — strikethrough |
 | `**text。**` at end of line | Yes |
 | `**text。**，` followed by punctuation | Yes |
 | `**text。** next` followed by a space | Yes |
 | `** text。**` with a space inside the markers | No — a separate, invalid-markup case |
 
+Highlight and strikethrough suffer from the same problem because their parsers use the same delimiter-flanking logic as emphasis.
+
 ## What the plugin does
 
-**1. Live Preview rendering.** It scans each visible line, finds CJK emphasis that the parser rejected, applies the bold/italic styling, and hides the `**` markers. Markers come back when the cursor is on that line so they remain editable. Source mode is untouched.
+**1. Live Preview rendering.** It scans each visible line, finds CJK emphasis that the parser rejected, applies the matching styling — bold, italic, bold+italic, highlight, or strikethrough — and hides the delimiters. Markers come back when the cursor is on that line so they remain editable. Source mode is untouched.
 
 **2. Source rewriting.** `**文字。**继续` is valid as far as this plugin is concerned, but it still breaks when you export to PDF or open the file in another Markdown editor. The command **Fix CJK emphasis in current note** rewrites it as:
 
@@ -36,7 +40,7 @@ This is [CommonMark issue #650](https://github.com/commonmark/commonmark-spec/is
 **文字**。继续
 ```
 
-The punctuation moves outside the emphasis markers, which is standard practice in Chinese typesetting. Inline code, `$$math$$`, and fenced code blocks are left alone.
+The same rewrite applies to `==`, `~~`, and `*`. The punctuation moves outside the delimiters, which is standard practice in Chinese typesetting. Inline code, `$$math$$`, and fenced code blocks are left alone.
 
 Both commands are also available from the settings tab.
 
@@ -67,8 +71,8 @@ Enable it under **Settings → Community plugins**. The repository ships an `ins
 
 ## Limitations
 
-- Covers `*`, `**`, and `***`. Highlight (`==`) and strikethrough (`~~`) follow different parsing rules and are not handled.
-- The source rewrite moves trailing punctuation outside the markers, so the punctuation itself is no longer bold. This matches common Chinese typesetting but is a deliberate trade-off.
+- Covers `*`, `**`, `***`, `==`, and `~~`. Underscore emphasis (`_text_`) is not handled, because CJK notes almost never use it.
+- The source rewrite moves trailing punctuation outside the delimiters, so the punctuation itself is no longer styled. This matches common Chinese typesetting but is a deliberate trade-off.
 - Reading view needs no fix: Obsidian already renders these lines correctly there.
 
 ## Development
