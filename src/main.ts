@@ -59,7 +59,10 @@ export default class CJKEmphasisFixPlugin extends Plugin {
 	}
 
 	async loadSettings() {
-		this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+		// loadData() is typed as any; narrow it before merging so the result
+		// stays a typed CJKEmphasisSettings (obsidianmd/no-unsafe-assignment).
+		const stored = (await this.loadData()) as Partial<CJKEmphasisSettings> | null;
+		this.settings = Object.assign({}, DEFAULT_SETTINGS, stored ?? {});
 	}
 
 	async saveSettings() {

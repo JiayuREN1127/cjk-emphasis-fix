@@ -1,4 +1,4 @@
-import { getLanguage } from "obsidian";
+import { moment } from "obsidian";
 
 const en = {
   pluginTitle: "CJK Emphasis Fix",
@@ -44,7 +44,9 @@ export type Strings = typeof en;
 
 function currentLanguage(): string {
   try {
-    return (getLanguage() || "en").toLowerCase();
+    // moment.locale() reflects the Obsidian interface language and has been
+    // part of the API far longer than getLanguage(), keeping minAppVersion low.
+    return (moment.locale() || "en").toLowerCase();
   } catch {
     return "en";
   }
