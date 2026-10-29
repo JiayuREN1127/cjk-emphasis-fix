@@ -1,35 +1,48 @@
 # CJK Emphasis Fix
 
-一个 Obsidian 插件，修复中文、日文、韩文文本里，加粗和斜体标记因 CommonMark flanking 规则而无法渲染的问题。
+Render bold and italic next to CJK punctuation in Obsidian Live Preview.
 
-## 问题是什么
+[中文说明](README_CN.md)
 
-CommonMark 规定：强调的闭合标记 `**` 是「right-flanking」的，必须满足「前面不是标点，或者后面是空白/标点」。中文句子里标点紧贴文字，于是：
+## The problem
+
+CommonMark requires the closing `**` of an emphasis run to be *right-flanking*: either the character before it is not punctuation, or the character after it is whitespace or punctuation. Chinese, Japanese, and Korean text is written without spaces, so the marker often lands exactly where both conditions fail:
 
 ```markdown
-前面**文字。**继续写     ← 闭合 ** 前面是「。」，后面是「继」，渲染失败
+前面**文字。**继续写
 ```
 
-在 Live Preview 里会直接显示字面的 `**`，文字也不加粗。
+Here the closing `**` is preceded by `。` and followed by `继`. No mainstream parser accepts that run, so the line renders as literal asterisks instead of bold text.
 
-已验证的边界：
+This is [CommonMark issue #650](https://github.com/commonmark/commonmark-spec/issues/650), open since 2017.
 
-| 写法 | 结果 |
+### What is broken and what is not
+
+| Markdown | Renders? |
 | --- | --- |
-| `**文字。**x` | 失败（本文要修的） |
-| `**文字。**`（行尾） | 正常 |
-| `**文字。**，`（后接标点） | 正常 |
-| `**文字。** x`（后接空格） | 正常 |
-| `** 文字。**`（标记内有空格） | 失败，属另一类问题 |
+| `**text。**next` | No — the case this plugin fixes |
+| `**text。**` at end of line | Yes |
+| `**text。**，` followed by punctuation | Yes |
+| `**text。** next` followed by a space | Yes |
+| `** text。**` with a space inside the markers | No — a separate, invalid-markup case |
 
-## 它做什么
+## What the plugin does
 
-1. **实时预览修复**：扫描当前视口内的行，找出「CJK 相关、但解析器没认出来」的强调，补上加粗/斜体样式并隐藏 `**` 标记。光标停在那一行时保留标记，方便编辑。源码模式（Source mode）不生效。
-2. **源码修复命令**：把 `**文字。**继续` 改写成 `**文字**。继续`——标点移出标记外。这样导出 PDF、在其他编辑器里打开、发布到网页时也能正常渲染。命令面板里有「扫描当前笔记中的 CJK 强调问题」和「一键修复当前笔记中的 CJK 强调」，设置页也有按钮。
+**1. Live Preview rendering.** It scans each visible line, finds CJK emphasis that the parser rejected, applies the bold/italic styling, and hides the `**` markers. Markers come back when the cursor is on that line so they remain editable. Source mode is untouched.
 
-不会动 `行内代码`、`$$数学公式$$` 和代码围栏内的内容。
+**2. Source rewriting.** `**文字。**继续` is valid as far as this plugin is concerned, but it still breaks when you export to PDF or open the file in another Markdown editor. The command **Fix CJK emphasis in current note** rewrites it as:
 
-## 安装
+```markdown
+**文字**。继续
+```
+
+The punctuation moves outside the emphasis markers, which is standard practice in Chinese typesetting. Inline code, `$$math$$`, and fenced code blocks are left alone.
+
+Both commands are also available from the settings tab.
+
+## Installation
+
+### Manual
 
 ```text
 <vault>/.obsidian/plugins/cjk-emphasis-fix/
@@ -38,43 +51,44 @@ CommonMark 规定：强调的闭合标记 `**` 是「right-flanking」的，必�
 └── versions.json
 ```
 
-或者直接用仓库里的脚本：
+Enable it under **Settings → Community plugins**. The repository ships an `install.sh` that copies the files and enables the plugin in one step:
 
 ```bash
 ./install.sh "/path/to/vault"
 ```
 
-脚本会复制三个文件，并把插件加进该 vault 的 `community-plugins.json`（自动启用）。
+## Settings
 
-## 设置
+| Setting | Default | Description |
+| --- | --- | --- |
+| Enable Live Preview fix | On | Master switch for the editor rendering fix. |
+| Show markers on the cursor line | On | Keeps `**` visible while editing that line. |
+| Fix current note | — | Runs the source rewrite on the open note. |
 
-- **启用实时预览修复**：总开关。
-- **光标所在行显示标记**：关掉后 `**` 始终隐藏。
-- **修复当前笔记**：对打开的笔记执行一次源码修复。
+## Limitations
 
-## 验证记录
+- Covers `*`, `**`, and `***`. Highlight (`==`) and strikethrough (`~~`) follow different parsing rules and are not handled.
+- The source rewrite moves trailing punctuation outside the markers, so the punctuation itself is no longer bold. This matches common Chinese typesetting but is a deliberate trade-off.
+- Reading view needs no fix: Obsidian already renders these lines correctly there.
 
-在本机 Obsidian 1.12.7 实测：
-
-- 插件开启，测试笔记第 1 节的 `前面**文字。**继续写` 正常加粗、星号不可见；
-- 插件关闭后同一行恢复字面 `**文字。**`，说明确实是插件在起作用。
-
-## 已知限制
-
-- 只处理 `*` / `**` / `***`。`==高亮==`、`~~删除线~~` 的解析规则不同，暂不覆盖。
-- 源码修复采用「标点移到标记外」策略，视觉上句末标点不再加粗；这是中文排版的常见做法。
-- 不做阅读视图处理：Obsidian 阅读视图本来就正常。
-
-## 开发
+## Development
 
 ```bash
 npm install
-npm run build     # tsc 类型检查 + esbuild 打包到 main.js
-npm test          # 扫描器单元测试（纯函数，不依赖 Obsidian）
+npm run build     # type-check, then bundle to main.js
+npm test          # parser tests, no Obsidian needed
 ```
 
-## 背景资料
+The scanner is a pure function set in `src/scanner.ts`; the editor integration lives in `src/extension.ts` and uses only the public `registerEditorExtension` API.
 
-- [CommonMark issue #650](https://github.com/commonmark/commonmark-spec/issues/650)：上游问题，7 年未解决
-- [Obsidian 论坛讨论](https://forum.obsidian.md/t/parsers-problems-with-bold-italic-highlight-markers-and-whitespaces-and-punctuation-marks/105107)
-- [markdown-cjk-friendly](https://github.com/tats-u/markdown-cjk-friendly)：规范层面的修复方案
+The code avoids regular-expression lookbehind on purpose, because iOS versions before 16.4 do not support it and the plugin targets mobile as well.
+
+## Background
+
+- [CommonMark issue #650](https://github.com/commonmark/commonmark-spec/issues/650)
+- [Obsidian forum thread on parser quirks](https://forum.obsidian.md/t/parsers-problems-with-bold-italic-highlight-markers-and-whitespaces-and-punctuation-marks/105107)
+- [markdown-cjk-friendly](https://github.com/tats-u/markdown-cjk-friendly) — a spec-level fix for CJK emphasis
+
+## License
+
+MIT

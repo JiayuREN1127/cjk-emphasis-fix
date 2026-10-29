@@ -2,8 +2,9 @@
   "id": "cjk-emphasis-fix",
   "name": "CJK Emphasis Fix",
   "version": "0.1.0",
-  "minAppVersion": "1.0.0",
-  "description": "修复中文、日文、韩文标点旁的加粗和斜体在实时预览中不渲染的问题。",
-  "author": "Jiayu",
+  "minAppVersion": "1.5.0",
+  "description": "Render bold and italic next to CJK punctuation, which otherwise shows up as literal asterisks.",
+  "author": "JiayuREN1127",
+  "authorUrl": "https://github.com/JiayuREN1127",
   "isDesktopOnly": false
 }

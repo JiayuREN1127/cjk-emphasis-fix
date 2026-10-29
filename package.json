@@ -1,13 +1,19 @@
 {
   "name": "obsidian-cjk-emphasis-fix",
   "version": "0.1.0",
-  "description": "Fix CJK bold and italic rendering in Obsidian Live Preview.",
+  "description": "Render bold and italic next to CJK punctuation in Obsidian Live Preview.",
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
     "test": "node tests/scanner.test.mjs"
   },
-  "keywords": ["obsidian", "cjk", "markdown", "bold", "italic"],
+  "keywords": [
+    "obsidian",
+    "cjk",
+    "markdown",
+    "bold",
+    "italic"
+  ],
   "license": "MIT",
   "devDependencies": {
     "@codemirror/language": "^6.12.1",
@@ -19,5 +25,9 @@
     "obsidian": "latest",
     "tslib": "2.4.0",
     "typescript": "^5.8.3"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/JiayuREN1127/cjk-emphasis-fix.git"
   }
 }

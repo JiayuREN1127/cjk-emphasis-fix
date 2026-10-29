@@ -26,6 +26,10 @@ function overlaps(a: TextMask, b: TextMask): boolean {
   return a.from < b.to && b.from < a.to;
 }
 
+function isStarAt(text: string, index: number): boolean {
+  return index >= 0 && index < text.length && text[index] === "*";
+}
+
 function findBacktickMasks(text: string): TextMask[] {
   const masks: TextMask[] = [];
   let i = 0;
@@ -88,8 +92,7 @@ function isValidCandidate(
   if (!cjkRelated) return null;
 
   const after = text.codePointAt(to);
-  const relaxedClosingBoundary =
-    cjkRelated && !isWhitespaceOrPunctuation(after);
+  const relaxedClosingBoundary = cjkRelated && !isWhitespaceOrPunctuation(after);
 
   // A CJK-aware match accepts a non-space/non-punctuation character after a
   // punctuation-ending span. Otherwise retain the normal CommonMark boundary.
@@ -111,6 +114,12 @@ function isValidCandidate(
   };
 }
 
+/**
+ * Scan one segment for emphasis delimited by `delimiterLength` asterisks.
+ *
+ * Lookbehind is avoided on purpose: iOS before 16.4 does not support it, and
+ * Obsidian ships on mobile, so the boundary checks are done by index instead.
+ */
 function scanWithRegex(
   text: string,
   start: number,
@@ -128,6 +137,9 @@ function scanWithRegex(
     const to = from + match[0].length;
     const range = { from, to };
     if (consumed.some((item) => overlaps(item, range))) continue;
+
+    // Part of a longer asterisk run, e.g. the inner `**` of `***` or `**a***`.
+    if (isStarAt(text, from - 1) || isStarAt(text, to)) continue;
 
     const contentFrom = from + delimiterLength;
     const contentTo = to - delimiterLength;
@@ -176,7 +188,7 @@ export function scanLine(text: string): { matches: EmphasisMatch[]; masks: TextM
         text,
         segment.from,
         segment.to,
-        /(?<!\*)\*\*(.+?)\*\*(?!\*)/g,
+        /\*\*(.+?)\*\*/g,
         2,
         consumed,
       ),
@@ -186,7 +198,7 @@ export function scanLine(text: string): { matches: EmphasisMatch[]; masks: TextM
         text,
         segment.from,
         segment.to,
-        /(?<!\*)\*([^*\n]+)\*(?!\*)/g,
+        /\*([^*\n]+)\*/g,
         1,
         consumed,
       ),
@@ -242,7 +254,7 @@ export function findSourceFixes(text: string): SourceFix[] {
 }
 
 /**
- * Scan an entire document (not just a single line) for CJK emphasis fixes.
+ * Scan an entire document for CJK emphasis fixes.
  * Skips fenced code blocks so inline `**` inside code is never touched.
  */
 export function findDocumentFixes(text: string): SourceFix[] {
@@ -255,7 +267,6 @@ export function findDocumentFixes(text: string): SourceFix[] {
     const lineText = lines[lineIndex];
     const lineLeading = lineText.match(/^(\s*)/)?.[1] ?? "";
 
-    // Fence toggling: ``` or ~~~ at start (after leading whitespace)
     const fenceMatch = lineText.slice(lineLeading.length).match(/^(`{3,}|~{3,})/);
     if (fenceMatch) {
       const fence = fenceMatch[1];
