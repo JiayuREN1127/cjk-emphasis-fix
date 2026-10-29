@@ -5,7 +5,8 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
-    "test": "node tests/scanner.test.mjs"
+    "test": "node tests/scanner.test.mjs",
+    "lint": "eslint src"
   },
   "keywords": [
     "obsidian",
@@ -21,10 +22,15 @@
     "@codemirror/view": "^6.39.15",
     "@lezer/common": "^1.5.1",
     "@types/node": "^16.11.6",
+    "@typescript-eslint/eslint-plugin": "^8.72.1",
+    "@typescript-eslint/parser": "^8.72.1",
     "esbuild": "0.25.5",
+    "eslint": "^9.39.5",
+    "eslint-plugin-obsidianmd": "^0.4.2",
     "obsidian": "latest",
     "tslib": "2.4.0",
-    "typescript": "^5.8.3"
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.72.1"
   },
   "repository": {
     "type": "git",
