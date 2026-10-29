@@ -3,8 +3,9 @@ import {
   MarkdownView,
   Notice,
   PluginSettingTab,
-  App,
   Setting,
+  SettingDefinitionItem,
+  App,
 } from "obsidian";
 import { EditorView } from "@codemirror/view";
 import { cjkEmphasisExtension } from "./extension";
@@ -107,6 +108,59 @@ class CJKEmphasisSettingTab extends PluginSettingTab {
 		this.plugin = plugin;
 	}
 
+	/**
+	 * Declarative settings (Obsidian 1.13+), so the settings also show up in
+	 * the settings search. Older versions keep using display() below.
+	 */
+	getSettingDefinitions(): SettingDefinitionItem[] {
+		const strings = t();
+		return [
+			{
+				name: strings.settingEnableName,
+				desc: strings.settingEnableDesc,
+				control: {
+					type: "toggle",
+					key: "enableLivePreviewFix",
+					defaultValue: DEFAULT_SETTINGS.enableLivePreviewFix,
+				},
+			},
+			{
+				name: strings.settingMarkersName,
+				desc: strings.settingMarkersDesc,
+				control: {
+					type: "toggle",
+					key: "keepMarkersNearCursor",
+					defaultValue: DEFAULT_SETTINGS.keepMarkersNearCursor,
+				},
+			},
+			{
+				name: strings.settingFixName,
+				desc: strings.settingFixDesc,
+				action: () => {
+					this.fixCurrentNote(strings);
+				},
+			},
+		];
+	}
+
+	getControlValue(key: string): unknown {
+		return (this.plugin.settings as unknown as Record<string, unknown>)[key];
+	}
+
+	async setControlValue(key: string, value: unknown): Promise<void> {
+		(this.plugin.settings as unknown as Record<string, unknown>)[key] = value;
+		await this.plugin.saveSettings();
+	}
+
+	private fixCurrentNote(strings = t()): void {
+		const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+		if (!view) {
+			new Notice(strings.noticeNoNote);
+			return;
+		}
+		this.plugin.fixView(view, strings);
+	}
+
 	display(): void {
 		const { containerEl } = this;
 		const strings = t();
@@ -141,12 +195,7 @@ class CJKEmphasisSettingTab extends PluginSettingTab {
 			.setDesc(strings.settingFixDesc)
 			.addButton((button) =>
 				button.setButtonText(strings.buttonFix).onClick(() => {
-					const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-					if (!view) {
-						new Notice(strings.noticeNoNote);
-						return;
-					}
-					this.plugin.fixView(view, strings);
+					this.fixCurrentNote(strings);
 				}),
 			);
 	}
