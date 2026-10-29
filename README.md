@@ -88,6 +88,7 @@ The code avoids regular-expression lookbehind on purpose, because iOS versions b
 - [CommonMark issue #650](https://github.com/commonmark/commonmark-spec/issues/650)
 - [Obsidian forum thread on parser quirks](https://forum.obsidian.md/t/parsers-problems-with-bold-italic-highlight-markers-and-whitespaces-and-punctuation-marks/105107)
 - [markdown-cjk-friendly](https://github.com/tats-u/markdown-cjk-friendly) — a spec-level fix for CJK emphasis
+- [obsidian-cjk-bold-fix](https://github.com/ebibibi/obsidian-cjk-bold-fix) — an earlier plugin that patches the same Live Preview behaviour; this project adds source-level rewriting and code/math masking
 
 ## License
 

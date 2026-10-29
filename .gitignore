@@ -1,6 +1,3 @@
 node_modules/
 tests/scanner.bundle.mjs
 .DS_Store
-main.js
-dist/
-*.zip

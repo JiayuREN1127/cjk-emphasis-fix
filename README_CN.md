@@ -84,6 +84,7 @@ npm test          # 扫描器测试，不需要启动 Obsidian
 - [CommonMark issue #650](https://github.com/commonmark/commonmark-spec/issues/650)
 - [Obsidian 论坛相关讨论](https://forum.obsidian.md/t/parsers-problems-with-bold-italic-highlight-markers-and-whitespaces-and-punctuation-marks/105107)
 - [markdown-cjk-friendly](https://github.com/tats-u/markdown-cjk-friendly)：规范层面的修复方案
+- [obsidian-cjk-bold-fix](https://github.com/ebibibi/obsidian-cjk-bold-fix)：更早的同源问题修复插件（仅修改实时预览显示）；本项目额外提供源码改写与代码/公式保护
 
 ## 许可
 
