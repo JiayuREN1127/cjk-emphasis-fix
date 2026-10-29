@@ -1,0 +1,9 @@
+{
+  "id": "cjk-emphasis-fix",
+  "name": "CJK Emphasis Fix",
+  "version": "0.1.0",
+  "minAppVersion": "1.0.0",
+  "description": "修复中文、日文、韩文标点旁的加粗和斜体在实时预览中不渲染的问题。",
+  "author": "Jiayu",
+  "isDesktopOnly": false
+}
