@@ -25,7 +25,14 @@ export function isFullwidthPunctuation(code: number): boolean {
   return (
     (code >= 0x3001 && code <= 0x3002) ||
     (code >= 0x3008 && code <= 0x3011) ||
-    (code >= 0x3014 && code <= 0x301b) ||
+    (code >= 0x3014 && code <= 0x301f) ||
+    // Middle dot, dashes, curly quotes, ellipsis and bullets are common in
+    // Chinese text even though they live outside the CJK blocks.
+    code === 0x00b7 ||
+    (code >= 0x2010 && code <= 0x2027) ||
+    (code >= 0x2030 && code <= 0x205e) ||
+    code === 0x3003 ||
+    (code >= 0x301c && code <= 0x301f) ||
     (code >= 0xff01 && code <= 0xff0f) ||
     (code >= 0xff1a && code <= 0xff20) ||
     (code >= 0xff3b && code <= 0xff40) ||

@@ -56,4 +56,17 @@ const document = [
 const documentFixes = findDocumentFixes(document);
 assert.equal(documentFixes.length, 3);
 
+// Every common Chinese punctuation mark, both for rendering and for the
+// optional source rewrite.
+const punctuation = [
+  "。", "、", "，", "；", "：", "！", "？", "）", "】", "》", "」", "』",
+  "…", "—", "～", "·", "“", "”", "‘", "’", "〈", "〔", "〖", "／", "．", "％", "＃",
+];
+for (const mark of punctuation) {
+  assert.deepEqual(kinds(`**文字${mark}**继续`), ["strong"], `render ${mark}`);
+  const fix = findSourceFixes(`**文字${mark}**继续`);
+  assert.equal(fix.length, 1, `fix ${mark}`);
+  assert.equal(fix[0].replacement, `**文字**${mark}`, `fix result ${mark}`);
+}
+
 console.log("scanner tests: ok");
