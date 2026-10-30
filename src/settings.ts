@@ -1,11 +1,13 @@
 export interface CJKEmphasisSettings {
   enableLivePreviewFix: boolean;
   keepMarkersNearCursor: boolean;
+  autoFixOnSave: boolean;
 }
 
 export const DEFAULT_SETTINGS: CJKEmphasisSettings = {
   enableLivePreviewFix: true,
   keepMarkersNearCursor: true,
+  autoFixOnSave: true,
 };
 
 let current: CJKEmphasisSettings = { ...DEFAULT_SETTINGS };
