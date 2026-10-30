@@ -32,6 +32,8 @@ Highlight and strikethrough suffer from the same problem because their parsers u
 
 ## What the plugin does
 
+**Theme agnostic.** The plugin never invents its own look: styled spans carry Obsidian's own `cm-strong`, `cm-em`, `cm-highlight` and `cm-strikethrough` classes, so each theme applies its own bold colour, weight, and highlight background. The excess that the parser styles is reset back to plain text using Obsidian's core variables, which keeps every theme's palette intact.
+
 **1. Live Preview rendering.** It scans each visible line, finds CJK emphasis that the parser rejected, applies the matching styling — bold, italic, bold+italic, highlight, or strikethrough — and hides the delimiters. Markers come back when the cursor is on that line so they remain editable. Source mode is untouched.
 
 A plugin cannot replace Obsidian's parser, and Obsidian sometimes pairs the closing delimiter with a later one, styling the rest of the paragraph. The plugin neutralises that excess styling at render time, using Obsidian's own theme variables, so themes colour and weight exactly the span you marked. It never modifies the note text.

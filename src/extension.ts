@@ -164,26 +164,23 @@ const cjkEmphasisTheme = EditorView.baseTheme({
   // Everything the editor's own emphasis styling would normally add is rolled
   // back to the surrounding plain-text appearance. Theme colours come from
   // Obsidian's own variables, so nothing is hard-coded.
-  ".cm-cjk-plain": {
+  // Doubled selector so this outranks any single-class theme rule, and the
+  // properties cover everything themes commonly attach to emphasis: colour,
+  // weight, style, background, underline and shadow. Colours come from
+  // Obsidian's own variables so each theme keeps its own palette.
+  ".cm-cjk-plain.cm-cjk-plain": {
     color: "var(--text-normal) !important",
     fontWeight: "normal !important",
     fontStyle: "normal !important",
     textDecoration: "none !important",
     backgroundColor: "transparent !important",
+    textShadow: "none !important",
+    borderBottom: "none !important",
+    letterSpacing: "normal !important",
   },
   ".cm-cjk-hide-marker": {
     fontSize: "0 !important",
     overflow: "hidden !important",
-  },
-  ".cm-cjk-strong.cm-cjk-strong": {
-    fontWeight: "bold !important",
-  },
-  ".cm-cjk-emphasis.cm-cjk-emphasis": {
-    fontStyle: "italic !important",
-  },
-  ".cm-cjk-strong-em.cm-cjk-strong-em": {
-    fontWeight: "bold !important",
-    fontStyle: "italic !important",
   },
 });
 
