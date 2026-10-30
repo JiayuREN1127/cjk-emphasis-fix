@@ -34,6 +34,8 @@ Highlight and strikethrough suffer from the same problem because their parsers u
 
 **1. Live Preview rendering.** It scans each visible line, finds CJK emphasis that the parser rejected, applies the matching styling — bold, italic, bold+italic, highlight, or strikethrough — and hides the delimiters. Markers come back when the cursor is on that line so they remain editable. Source mode is untouched.
 
+Obsidian does not only miss these runs; sometimes it pairs the closing delimiter with a later one and styles the rest of the paragraph. When that happens, the plugin also restores the over-styled tail to normal weight, so only the text you marked is emphasised.
+
 **2. Source rewriting.** `**文字。**继续` is valid as far as this plugin is concerned, but it still breaks when you export to PDF or open the file in another Markdown editor. The command **Fix CJK emphasis in current note** rewrites it as:
 
 ```markdown

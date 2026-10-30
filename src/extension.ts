@@ -11,12 +11,23 @@ import { editorLivePreviewField } from "obsidian";
 import { getSettings } from "./settings";
 import { scanLine, EmphasisMatch } from "./scanner";
 
-function collectParserEmphasis(view: EditorView): { from: number; to: number }[] {
-  const ranges: { from: number; to: number }[] = [];
+interface DocRange {
+  from: number;
+  to: number;
+}
+
+/**
+ * Emphasis runs the parser actually produced. The editor sometimes produces a
+ * run that is wider than what the author marked: when the closing delimiter
+ * fails the flanking rule, the run is left open and everything up to the end
+ * of the paragraph is styled. Those ranges let the excess be neutralised.
+ */
+function collectParserEmphasis(view: EditorView): DocRange[] {
+  const ranges: DocRange[] = [];
   syntaxTree(view.state).iterate({
     enter(node) {
       const name = node.name;
-      if (name.includes("formatting")) return;
+      if (name.includes("formatting") || name.includes("Formatting")) return;
       const isDelimited =
         name.includes("strong") ||
         name.includes("em") ||
@@ -24,8 +35,7 @@ function collectParserEmphasis(view: EditorView): { from: number; to: number }[]
         name.includes("strikethrough") ||
         name.includes("strike");
       if (!isDelimited) return;
-      // Skip marker nodes such as EmphasisMark or HighlightMark.
-      if (name.includes("mark") || name.includes("FormattingMark")) return;
+      if (name.includes("mark") || name.includes("Mark")) return;
       ranges.push({ from: node.from, to: node.to });
     },
   });
@@ -51,6 +61,7 @@ function buildDecorations(view: EditorView): DecorationSet {
   const highlightMark = Decoration.mark({ class: "cm-cjk-highlight" });
   const strikeMark = Decoration.mark({ class: "cm-cjk-strike" });
   const hideMarkerMark = Decoration.mark({ class: "cm-cjk-hide-marker" });
+  const normalMark = Decoration.mark({ class: "cm-cjk-normal" });
 
   const markFor = (kind: EmphasisMatch["kind"]) => {
     switch (kind) {
@@ -67,6 +78,8 @@ function buildDecorations(view: EditorView): DecorationSet {
     }
   };
 
+  const neutralised = new Set<string>();
+
   for (const { from, to } of view.visibleRanges) {
     const startLine = doc.lineAt(from).number;
     const endLine = doc.lineAt(to).number;
@@ -74,7 +87,12 @@ function buildDecorations(view: EditorView): DecorationSet {
     for (let lineNumber = startLine; lineNumber <= endLine; lineNumber++) {
       const line = doc.line(lineNumber);
       const { matches } = scanLine(line.text);
+      if (matches.length === 0) continue;
+
       const cursorOnLine = cursorHead >= line.from && cursorHead <= line.to;
+      const lineParser = parserRanges.filter(
+        (range) => range.from < line.to && range.to > line.from,
+      );
 
       for (const match of matches) {
         const mFrom = line.from + match.from;
@@ -82,13 +100,25 @@ function buildDecorations(view: EditorView): DecorationSet {
         const cFrom = line.from + match.contentFrom;
         const cTo = line.from + match.contentTo;
 
-        const parserHandled = parserRanges.some(
-          (parser) => parser.from <= cFrom && parser.to >= cTo,
+        // The parser node starts at the content, not at the opening delimiter.
+        // If it reaches past the closing delimiter, the editor is styling
+        // characters the author did not mark.
+        const covering = lineParser.find(
+          (range) => range.from <= cFrom && range.to >= cTo,
         );
-
-        if (!parserHandled) {
-          decorations.push(markFor(match.kind).range(cFrom, cTo));
+        if (covering && covering.to > mTo) {
+          const resetFrom = mTo;
+          const resetTo = Math.min(covering.to, line.to);
+          const key = `${resetFrom}:${resetTo}`;
+          if (resetTo > resetFrom && !neutralised.has(key)) {
+            neutralised.add(key);
+            decorations.push(normalMark.range(resetFrom, resetTo));
+          }
         }
+
+        // Always style the content: the syntax tree is not a reliable signal
+        // that the editor rendered it, and restyling is harmless.
+        decorations.push(markFor(match.kind).range(cFrom, cTo));
 
         if (!(settings.keepMarkersNearCursor && cursorOnLine)) {
           const delimiter = match.delimiterLength;
@@ -112,11 +142,7 @@ const cjkEmphasisViewPlugin = ViewPlugin.fromClass(
     }
 
     update(update: ViewUpdate) {
-      if (
-        update.docChanged ||
-        update.viewportChanged ||
-        update.selectionSet
-      ) {
+      if (update.docChanged || update.viewportChanged || update.selectionSet) {
         this.decorations = buildDecorations(update.view);
       }
     }
@@ -126,22 +152,30 @@ const cjkEmphasisViewPlugin = ViewPlugin.fromClass(
   },
 );
 
+// Content selectors repeat their class so they outrank `.cm-cjk-normal`, which
+// neutralises the delimiters the parser paired wrongly.
 const cjkEmphasisTheme = EditorView.baseTheme({
-  ".cm-cjk-strong": {
+  ".cm-cjk-strong.cm-cjk-strong": {
     fontWeight: "bold !important",
   },
-  ".cm-cjk-emphasis": {
+  ".cm-cjk-emphasis.cm-cjk-emphasis": {
     fontStyle: "italic !important",
   },
-  ".cm-cjk-strong-em": {
+  ".cm-cjk-strong-em.cm-cjk-strong-em": {
     fontWeight: "bold !important",
     fontStyle: "italic !important",
   },
-  ".cm-cjk-highlight": {
+  ".cm-cjk-highlight.cm-cjk-highlight": {
     backgroundColor: "var(--text-highlight-bg) !important",
   },
-  ".cm-cjk-strike": {
+  ".cm-cjk-strike.cm-cjk-strike": {
     textDecoration: "line-through !important",
+  },
+  ".cm-cjk-normal": {
+    fontWeight: "normal !important",
+    fontStyle: "normal !important",
+    textDecoration: "none !important",
+    backgroundColor: "transparent !important",
   },
   ".cm-cjk-hide-marker": {
     fontSize: "0 !important",
