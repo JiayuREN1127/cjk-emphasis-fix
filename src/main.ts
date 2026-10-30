@@ -5,7 +5,6 @@ import {
   PluginSettingTab,
   Setting,
   SettingDefinitionItem,
-  TFile,
   App,
 } from "obsidian";
 import { EditorView } from "@codemirror/view";
@@ -26,27 +25,6 @@ export default class CJKEmphasisFixPlugin extends Plugin {
 		applySettings(this.settings);
 
 		this.registerEditorExtension(cjkEmphasisExtension());
-		this.registerEvent(
-			this.app.vault.on("modify", (file) => {
-				if (!this.settings.autoFixOnSave) return;
-				if (!(file instanceof TFile) || file.extension !== "md") return;
-				const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-				if (!view || view.file?.path !== file.path) return;
-				// Only rewrite when the editor content matches the file that was
-				// just written, so a stale view is never overwritten.
-				const text = view.editor.getValue();
-				if (text !== view.data) return;
-				const fixes = findDocumentFixes(text);
-				if (fixes.length === 0) return;
-				view.editor.transaction({
-					changes: fixes.map((fix) => ({
-						from: view.editor.offsetToPos(fix.from),
-						to: view.editor.offsetToPos(fix.to),
-						text: fix.replacement,
-					})),
-				});
-			}),
-		);
 		this.addSettingTab(new CJKEmphasisSettingTab(this.app, this));
 
 		const strings = t();
@@ -156,15 +134,6 @@ class CJKEmphasisSettingTab extends PluginSettingTab {
 				},
 			},
 			{
-				name: strings.settingAutoFixName,
-				desc: strings.settingAutoFixDesc,
-				control: {
-					type: "toggle",
-					key: "autoFixOnSave",
-					defaultValue: DEFAULT_SETTINGS.autoFixOnSave,
-				},
-			},
-			{
 				name: strings.settingFixName,
 				desc: strings.settingFixDesc,
 				action: () => {
@@ -217,18 +186,6 @@ class CJKEmphasisSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.keepMarkersNearCursor)
 					.onChange(async (value) => {
 						this.plugin.settings.keepMarkersNearCursor = value;
-						await this.plugin.saveSettings();
-					}),
-			);
-
-		new Setting(containerEl)
-			.setName(strings.settingAutoFixName)
-			.setDesc(strings.settingAutoFixDesc)
-			.addToggle((toggle) =>
-				toggle
-					.setValue(this.plugin.settings.autoFixOnSave)
-					.onChange(async (value) => {
-						this.plugin.settings.autoFixOnSave = value;
 						await this.plugin.saveSettings();
 					}),
 			);

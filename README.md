@@ -34,7 +34,7 @@ Highlight and strikethrough suffer from the same problem because their parsers u
 
 **1. Live Preview rendering.** It scans each visible line, finds CJK emphasis that the parser rejected, applies the matching styling — bold, italic, bold+italic, highlight, or strikethrough — and hides the delimiters. Markers come back when the cursor is on that line so they remain editable. Source mode is untouched.
 
-A plugin cannot replace Obsidian's parser, and Obsidian sometimes pairs the closing delimiter with a later one, styling the rest of the paragraph. The durable fix is therefore to make the markup valid: with **Normalise markup when saving** enabled, the plugin rewrites `**text。**next` into `**text**。next` shortly after you stop typing. Obsidian then parses the line normally, and themes style exactly the span you marked.
+A plugin cannot replace Obsidian's parser, and Obsidian sometimes pairs the closing delimiter with a later one, styling the rest of the paragraph. The plugin neutralises that excess styling at render time, using Obsidian's own theme variables, so themes colour and weight exactly the span you marked. It never modifies the note text.
 
 **2. Source rewriting.** `**文字。**继续` is valid as far as this plugin is concerned, but it still breaks when you export to PDF or open the file in another Markdown editor. The command **Fix CJK emphasis in current note** rewrites it as:
 
@@ -69,13 +69,12 @@ Enable it under **Settings → Community plugins**. The repository ships an `ins
 | --- | --- | --- |
 | Enable Live Preview fix | On | Master switch for the editor rendering fix. |
 | Show markers on the cursor line | On | Keeps `**` visible while editing that line. |
-| Normalise markup when saving | On | Rewrites invalid CJK emphasis in the active note after you stop typing. |
 | Fix current note | — | Runs the source rewrite on the open note. |
 
 ## Limitations
 
 - Covers `*`, `**`, `***`, `==`, and `~~`. Underscore emphasis (`_text_`) is not handled, because CJK notes almost never use it.
-- Normalisation moves trailing punctuation outside the delimiters, so the punctuation itself is no longer styled. This matches common Chinese typesetting but is a deliberate trade-off; the plugin never rewrites code, math, or non-CJK text.
+- The optional **Fix CJK emphasis in current note** command rewrites `**text。**next` as `**text**。next` so the file renders correctly outside Obsidian too. It only runs when you invoke it; the plugin never changes your text on its own.
 - Reading view needs no fix: Obsidian already renders these lines correctly there.
 
 ## Development

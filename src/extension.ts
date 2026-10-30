@@ -6,14 +6,45 @@ import {
   EditorView,
 } from "@codemirror/view";
 import { Extension, Prec, Range } from "@codemirror/state";
+import { syntaxTree } from "@codemirror/language";
 import { editorLivePreviewField } from "obsidian";
 import { getSettings } from "./settings";
 import { scanLine, EmphasisMatch } from "./scanner";
 
+interface DocRange {
+  from: number;
+  to: number;
+}
+
 /**
- * Class names Obsidian itself uses for these runs. Reusing them means themes
- * style the marked span exactly the way they style regular emphasis (bold
- * colour, highlight background, and so on) instead of us inventing a look.
+ * Emphasis runs the parser actually produced. Obsidian sometimes produces a
+ * run wider than what the author marked: when the closing delimiter fails the
+ * flanking rule the run stays open and everything up to the end of the
+ * paragraph is styled. Those ranges let the excess be neutralised.
+ */
+function collectParserEmphasis(view: EditorView): DocRange[] {
+  const ranges: DocRange[] = [];
+  syntaxTree(view.state).iterate({
+    enter(node) {
+      const name = node.name;
+      if (name.includes("formatting") || name.includes("Formatting")) return;
+      const isDelimited =
+        name.includes("strong") ||
+        name.includes("em") ||
+        name.includes("highlight") ||
+        name.includes("strikethrough") ||
+        name.includes("strike");
+      if (!isDelimited) return;
+      if (name.includes("mark") || name.includes("Mark")) return;
+      ranges.push({ from: node.from, to: node.to });
+    },
+  });
+  return ranges;
+}
+
+/**
+ * Class names Obsidian itself uses, so themes style the marked span the same
+ * way they style regular emphasis (bold colour, highlight background, ...).
  */
 function classesFor(kind: EmphasisMatch["kind"]): string[] {
   switch (kind) {
@@ -40,20 +71,22 @@ function buildDecorations(view: EditorView): DecorationSet {
 
   const decorations: Range<Decoration>[] = [];
   const doc = view.state.doc;
+  const parserRanges = collectParserEmphasis(view);
   const cursorHead = view.state.selection.main.head;
 
   const marks = new Map<string, Decoration>();
   const markFor = (kind: EmphasisMatch["kind"]) => {
-    const key = kind;
-    let mark = marks.get(key);
+    let mark = marks.get(kind);
     if (!mark) {
       mark = Decoration.mark({ class: classesFor(kind).join(" ") });
-      marks.set(key, mark);
+      marks.set(kind, mark);
     }
     return mark;
   };
 
   const hideMarkerMark = Decoration.mark({ class: "cm-cjk-hide-marker" });
+  const plainMark = Decoration.mark({ class: "cm-cjk-plain" });
+  const neutralised = new Set<string>();
 
   for (const { from, to } of view.visibleRanges) {
     const startLine = doc.lineAt(from).number;
@@ -65,12 +98,31 @@ function buildDecorations(view: EditorView): DecorationSet {
       if (matches.length === 0) continue;
 
       const cursorOnLine = cursorHead >= line.from && cursorHead <= line.to;
+      const lineParser = parserRanges.filter(
+        (range) => range.from < line.to && range.to > line.from,
+      );
 
       for (const match of matches) {
         const mFrom = line.from + match.from;
         const mTo = line.from + match.to;
         const cFrom = line.from + match.contentFrom;
         const cTo = line.from + match.contentTo;
+
+        // The parser node starts at the content, not at the opening delimiter.
+        // If it reaches past the closing delimiter, the editor is styling
+        // characters the author did not mark.
+        const covering = lineParser.find(
+          (range) => range.from <= cFrom && range.to >= cTo,
+        );
+        if (covering && covering.to > mTo) {
+          const resetFrom = mTo;
+          const resetTo = Math.min(covering.to, line.to);
+          const key = `${resetFrom}:${resetTo}`;
+          if (resetTo > resetFrom && !neutralised.has(key)) {
+            neutralised.add(key);
+            decorations.push(plainMark.range(resetFrom, resetTo));
+          }
+        }
 
         // Always style the content: the syntax tree is not a reliable signal
         // that the editor rendered it, and restyling is harmless.
@@ -109,9 +161,29 @@ const cjkEmphasisViewPlugin = ViewPlugin.fromClass(
 );
 
 const cjkEmphasisTheme = EditorView.baseTheme({
+  // Everything the editor's own emphasis styling would normally add is rolled
+  // back to the surrounding plain-text appearance. Theme colours come from
+  // Obsidian's own variables, so nothing is hard-coded.
+  ".cm-cjk-plain": {
+    color: "var(--text-normal) !important",
+    fontWeight: "normal !important",
+    fontStyle: "normal !important",
+    textDecoration: "none !important",
+    backgroundColor: "transparent !important",
+  },
   ".cm-cjk-hide-marker": {
     fontSize: "0 !important",
     overflow: "hidden !important",
+  },
+  ".cm-cjk-strong.cm-cjk-strong": {
+    fontWeight: "bold !important",
+  },
+  ".cm-cjk-emphasis.cm-cjk-emphasis": {
+    fontStyle: "italic !important",
+  },
+  ".cm-cjk-strong-em.cm-cjk-strong-em": {
+    fontWeight: "bold !important",
+    fontStyle: "italic !important",
   },
 });
 

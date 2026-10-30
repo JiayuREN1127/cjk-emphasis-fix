@@ -17,9 +17,6 @@ const en = {
   settingFixName: "Fix current note",
   settingFixDesc:
     "Rewrite `**text。**next` as `**text**。next` so the formatting also renders when exported or opened in other editors.",
-  settingAutoFixName: "Normalise markup when saving",
-  settingAutoFixDesc:
-    "Rewrite `**text。**next` as `**text**。next` automatically after you stop typing. This keeps the file valid Markdown, so Obsidian renders it correctly and themes style only the marked span.",
   buttonFix: "Fix",
 };
 
@@ -40,9 +37,6 @@ const zh: typeof en = {
   settingFixName: "修复当前笔记",
   settingFixDesc:
     "把 `**文字。**继续` 改成 `**文字**。继续`，这样导出或换编辑器打开也能正常渲染。",
-  settingAutoFixName: "保存时自动规范化",
-  settingAutoFixDesc:
-    "停止输入后自动把 `**文字。**继续` 改写为 `**文字**。继续`。这样标记本身合法，Obsidian 能正确识别，主题样式也只会作用在标记范围内。",
   buttonFix: "执行修复",
 };
 
