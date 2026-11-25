@@ -72,11 +72,12 @@ Enable it under **Settings → Community plugins**. The repository ships an `ins
 | Enable Live Preview fix | On | Master switch for the editor rendering fix. |
 | Show markers on the cursor line | On | Keeps `**` visible while editing that line. |
 | Fix current note | — | Runs the source rewrite on the open note. |
+| Enable source rewrite (experimental) | Off | Registers the rewrite commands. Even when on, a rewrite only happens when you invoke it; the plugin never runs it by itself. |
 
 ## Limitations
 
 - Covers `*`, `**`, `***`, `==`, and `~~`. Underscore emphasis (`_text_`) is not handled, because CJK notes almost never use it.
-- The optional **Fix CJK emphasis in current note** command rewrites `**text。**next` as `**text**。next` so the file renders correctly outside Obsidian too. It only runs when you invoke it; the plugin never changes your text on its own.
+- The optional **Fix CJK emphasis in current note** command rewrites `**text。**next` as `**text**。next` so the file renders correctly outside Obsidian too. It only runs when you invoke it; the plugin never changes your text on its own. It is off by default and must be enabled in settings. When enabled, it refuses the whole note if the note contains link, HTML, math, comment, inline-code, table or entity syntax (any of `[ ] < ! $ | % &` or a backtick), so it only rewrites plain-prose notes; keep a backup anyway.
 - Reading view needs no fix: Obsidian already renders these lines correctly there.
 
 ## Development

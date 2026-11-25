@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import {
   scanLine,
   scanPreviewLine,
+  findSourceFixes,
+  findDocumentFixes,
   findExcessParserRanges,
   findLiteralLines,
   findWikiBarriers,
@@ -61,14 +63,63 @@ assert.equal(
   inlineCodeLine.slice(inlineCodeMatches[0].contentFrom, inlineCodeMatches[0].contentTo),
   "“高级抽象（`std::linalg`/张量 DSL）+ 专用调度编译器（处理融合与不规则尺寸）+ 底层专家级微内核（MKL/BLIS/CUTLASS）”",
 );
+// The automatic rewrite skips it: the trailing `）”` closes a pair opened
+// inside the span, and the opener would still not satisfy CommonMark.
+assert.equal(findSourceFixes(inlineCodeLine).length, 0);
 
 // setext underline must not be read as highlight
 assert.deepEqual(kinds("==="), []);
 assert.deepEqual(kinds("===="), []);
 
+const fixes = findSourceFixes("前面**文字。**继续");
+assert.equal(fixes.length, 1);
+assert.equal(fixes[0].replacement, "**文字**。");
+
+// A span whose content ends in inline code: the closing backtick is ASCII
+// punctuation, so the rewrite walker used to move it and corrupt the span.
+assert.equal(findSourceFixes("**`字`**后").length, 0);
+assert.equal(findSourceFixes("**字`x`。**后").length, 0);
+assert.equal(findSourceFixes("**` 字 `**后").length, 0);
+assert.equal(findSourceFixes("**𠀀`😀`。**𠀀").length, 0);
+
+// Closing characters that belong to a pair opened inside the span.
+assert.equal(findSourceFixes("**[字](u)**后").length, 0);
+assert.equal(findSourceFixes("中**“字”**后").length, 0);
+assert.equal(findSourceFixes("中**（字。**后").length, 0);
+
+// Punctuation that is safe to move even though the span contains code.
+const codeFix = findSourceFixes("**加粗含 `code` 的文本。**后续");
+assert.equal(codeFix.length, 1);
+assert.equal(codeFix[0].replacement, "**加粗含 `code` 的文本**。");
+
+// The rewrite only touches plain prose. Links, embeds, HTML, math and tables
+// carry syntax a punctuation move can break, so the whole line is skipped.
+assert.equal(findSourceFixes("[](*字。*后)").length, 0);
+assert.equal(findSourceFixes("*字<br/>*后").length, 0);
+assert.equal(findSourceFixes("<!--*字。*后-->").length, 0);
+assert.equal(findSourceFixes("a <i x=\"*字。*后\">").length, 0);
+assert.equal(findSourceFixes("![[==字。==后]]").length, 0);
+assert.equal(findSourceFixes("$*字。*后$").length, 0);
+assert.equal(findSourceFixes("| *字。*后 |").length, 0);
+assert.equal(findSourceFixes("*«字»*后").length, 0);
+assert.equal(findSourceFixes("**甲** [](*乙。*续)").length, 0);
+
+// A list item whose first line holds a multi-line code span must keep its
+// marker when the document is re-parsed.
+assert.equal(findDocumentFixes("- `\n  `\n  ~~~\n~~~\n*字。*后\n").length, 0);
+assert.equal(findDocumentFixes("$$\n~~~\n$$\n`\n*字。*后`\n").length, 0);
+
 // Escaped markers are literal text, not delimiters.
 assert.deepEqual(kinds("a*\\*字。*后"), []);
+assert.equal(findSourceFixes("a*\\*字。*后").length, 0);
 assert.deepEqual(scanLine("\\`x`*字。*后").masks, []);
+
+// Punctuation the hand-written table missed still counts for flanking.
+assert.equal(findSourceFixes("**［字］**后").length, 0);
+assert.equal(findSourceFixes("中**«字。**后").length, 0);
+
+// Empty content after the move.
+assert.equal(findSourceFixes("**。**后").length, 0);
 
 // A closer that cannot close must not swallow the real span.
 assert.deepEqual(kinds("**`x` **字。**后"), ["strong"]);
@@ -84,6 +135,14 @@ assert.deepEqual(kinds("*中\\*文。*续"), ["em"]);
 assert.deepEqual(kinds("**中\\*文。**后"), ["strong"]);
 // Recovery never reaches into inline code or across accepted spans.
 assert.deepEqual(kinds("*字\\*`*`"), []);
+const recovered = findSourceFixes("*字\\* **甲。**乙。*后");
+for (let first = 0; first < recovered.length; first++) {
+  for (let second = first + 1; second < recovered.length; second++) {
+    const a = recovered[first];
+    const b = recovered[second];
+    assert.ok(a.to <= b.from || b.to <= a.from, "rewrite edits must not overlap");
+  }
+}
 
 assert.deepEqual(
   scanPreviewLine("[中*](u)文。*后", [{ from: 5, to: 6 }]).matches.map((match) => match.kind),
@@ -231,6 +290,8 @@ assert.deepEqual(scanPreviewLine("**加粗含 `code` 的文本。**后续").matc
 
 // The command keeps its historical display boundaries; preview requires a
 // standalone `$$`.
+assert.equal(findDocumentFixes("$$$\n**字。**后\n").length, 0);
+assert.equal(findDocumentFixes("$$\nb$$\n**字。**后\n").length, 0);
 assert.deepEqual(findLiteralLines(["$$$", "**字。**后"], { displayBlocks: "standalone" }), [
   false,
   false,
@@ -251,6 +312,56 @@ assert.deepEqual(
 // A long token line must not blow the call stack.
 assert.equal(tokenizePreviewLine("$x$".repeat(130000)).length, 130000);
 
+// Command must not edit literal math, link metadata, nested delimiters or
+// Obsidian comments, and must recognize a BOM before frontmatter.
+assert.equal(findDocumentFixes("$$\n```\n$$\n$$\n*字。*后\n$$\n").length, 0);
+assert.equal(findDocumentFixes("---\nx: |\n  ```\n---\n$$\n*字。*后\n$$\n").length, 0);
+assert.equal(findDocumentFixes("[a](\n*字。*后\n)\n").length, 0);
+assert.equal(findDocumentFixes("[a]: u\n  \"*字。*后\"\n").length, 0);
+assert.equal(findDocumentFixes("*字 _甲_。*后\n").length, 0);
+assert.equal(findDocumentFixes("%%*字。*后%%\n").length, 0);
+assert.equal(
+  findDocumentFixes("\uFEFF---\na: \"*字。*后\"\n---\n**字。**后\n").length,
+  1,
+);
+const nestedHighlight = findDocumentFixes("*==字==。*x\n");
+assert.equal(nestedHighlight.length, 1);
+assert.equal(nestedHighlight[0].replacement, "*==字==*。");
+const nestedStrike = findDocumentFixes("*~~字~~。*x\n");
+assert.equal(nestedStrike.length, 1);
+assert.equal(nestedStrike[0].replacement, "*~~字~~*。");
+assert.equal(findDocumentFixes("****。**x\n").length, 0);
+assert.equal(findDocumentFixes("%%\n*字。*x\n%%\n").length, 0);
+assert.equal(findDocumentFixes("$$\n~~~\n$$\n$$\n```\n$$\n```\n*字。*x\n```\n").length, 0);
+assert.equal(findDocumentFixes("$$\n```\n$$\n[a](\n*字。*x\n)\n").length, 0);
+assert.equal(findDocumentFixes("---\na: |\n  ---\n  *字。*x\n---\n").length, 0);
+assert.equal(findDocumentFixes("$$\n`\n$$\n$$\n`\n*字。*x\n$$\n").length, 0);
+assert.equal(findDocumentFixes("`\n` [](\n*字。*x\n)\n").length, 0);
+assert.equal(findDocumentFixes("`%%`\n%%\n*字。*x\n%%\n").length, 0);
+assert.equal(findDocumentFixes("---\ns: \"*字。*x\"\n--- \n").length, 0);
+assert.equal(findDocumentFixes("$$\n`\n$$\n`\n` [](\n*字。*x\n)\n").length, 0);
+assert.equal(findDocumentFixes("$$`\nb$$\n$$\n`\n*字。*x\n$$\n").length, 0);
+assert.equal(findDocumentFixes("---\na: \"`x` %%\"\n---\n%%\n*字。*x\n%%\n").length, 0);
+assert.equal(findDocumentFixes("$$%%$$\n%%\n*字。*x\n%%\n").length, 0);
+assert.equal(findDocumentFixes("$$\n`\n$$\n`*字。*x\n`\n").length, 0);
+assert.equal(findDocumentFixes("~~~\n$$\n~~~\n`*字。*x\n`\n").length, 0);
+assert.equal(findDocumentFixes("[]($) %% $\n*字。*x\n%%\n").length, 0);
+assert.equal(findDocumentFixes("---\na: |\n  $$\n---\n`*字。*x\n`\n").length, 0);
+assert.equal(findDocumentFixes("`x`*字。*x\n").length, 0);
+assert.equal(findDocumentFixes("[](%%)\n%%\n*字。*x\n%%\n").length, 0);
+assert.equal(findDocumentFixes("\t$$\n$$\n`\n$$\n`\n*字。*x\n`\n").length, 0);
+assert.equal(findDocumentFixes("[[%%]]\n%%\n*字。*x\n%%\n").length, 0);
+assert.equal(findDocumentFixes("%%`%%`%%\n*字。*x\n%%\n").length, 0);
+assert.equal(findDocumentFixes("\uFEFF    *字。*x\n").length, 0);
+assert.equal(findDocumentFixes("\uFEFF~~~\n*字。*x\n~~~\n").length, 0);
+assert.equal(findDocumentFixes("--- \na: \"*字。*x\"\n---\n").length, 0);
+assert.equal(findDocumentFixes("**字*。**x\n").length, 0);
+const bomFence = "\uFEFF   ~~~\n*字。*x\n   ~~~\n**字。**后\n";
+const bomFenceFixes = findDocumentFixes(bomFence);
+assert.equal(bomFenceFixes.length, 1);
+const bomApplied = bomFence.slice(0, bomFenceFixes[0].from) + bomFenceFixes[0].replacement + bomFence.slice(bomFenceFixes[0].to);
+assert.ok(bomApplied.includes("*字。*x"), "fence body must stay untouched");
+assert.ok(bomApplied.endsWith("**字**。后\n"), "prose after the fence must be repaired");
 // A URL starting with a backtick must not swallow the URL barrier.
 assert.deepEqual(
   scanPreviewLine("[](`)*字。*x`", [{ from: 3, to: 4 }]).matches.map((match) => [
@@ -272,11 +383,59 @@ assert.deepEqual(
 );
 
 
+assert.equal(findSourceFixes("*字&amp;*后").length, 0);
+assert.equal(findSourceFixes("*字&#65;*后").length, 0);
+// Frontmatter is searched without a line limit.
+const longFrontmatter = [
+  "---",
+  ...Array.from({ length: 205 }, (_, index) => `# comment ${index}`),
+  'a: "*字。*后"',
+  "---",
+  "**字。**后",
+].join("\n");
+assert.equal(findDocumentFixes(longFrontmatter).length, 1);
 
 // The command treats multi-line code lines as literal.
 assert.deepEqual(findLiteralLines(["`a", "b` **字。**后"]), [true, true]);
 
+const highlightFix = findSourceFixes("前==重要！==后");
+assert.equal(highlightFix[0].replacement, "==重要==！");
 
+const strikeFix = findSourceFixes("~~删除。~~继续");
+assert.equal(strikeFix[0].replacement, "~~删除~~。");
+
+const document = [
+  "正常**文字。**继续",
+  "```md",
+  "坏的 **代码。**继续",
+  "```",
+  "再次*文字！*后文",
+  "高亮==重点。==后续",
+].join("\n");
+const documentFixes = findDocumentFixes(document);
+assert.equal(documentFixes.length, 0);
+
+// Blocks whose content is literal text, never rewritten.
+assert.equal(findDocumentFixes("$$\n**字。**后\n$$\n").length, 0);
+assert.equal(findDocumentFixes("    **字。**后\n").length, 0);
+assert.equal(findDocumentFixes("\t**字。**后\n").length, 0);
+assert.equal(findDocumentFixes(" \t**字。**后\n").length, 0);
+assert.equal(findDocumentFixes("```\n\t```\n**字。**后\n").length, 0);
+assert.equal(findDocumentFixes("> ```\n> **字。**后\n> ```\n").length, 0);
+assert.equal(findDocumentFixes("```\n**字。**后\n```x\n**字。**后\n```\n").length, 0);
+assert.equal(
+  findDocumentFixes(["```", "**字。**后", "```x", "**字。**后", "```", "**字。**后"].join("\n")).length,
+  0,
+);
+assert.equal(findDocumentFixes("~~~\n**字。**后\n~~~\n").length, 0);
+
+// A `$$` span closed on the same line is a mask, not a block; the prose on
+// that line and after it is still fixed.
+assert.equal(findDocumentFixes("$$x$$ **字。**后\n**字。**后\n").length, 0);
+assert.equal(findDocumentFixes("$$$$\n**字。**后\n").length, 0);
+assert.equal(findDocumentFixes("    $$\n**字。**后\n").length, 0);
+// Backticks inside a math block are content, not a fence opener.
+assert.equal(findDocumentFixes("$$\n```\n$$\n**字。**后\n").length, 0);
 
 // The same classifier drives Live Preview decorations.
 assert.deepEqual(findLiteralLines(["```", "**字。**后", "```", "**字。**后"]), [true, true, true, false]);
@@ -284,6 +443,7 @@ assert.deepEqual(findLiteralLines(["$$", "**字。**后", "$$"]), [true, true, t
 assert.deepEqual(findLiteralLines(["    **字。**后", "**字。**后"]), [true, false]);
 // Indented code cannot interrupt a paragraph.
 assert.deepEqual(findLiteralLines(["文字", "    **字。**后"]), [false, false]);
+assert.equal(findDocumentFixes("文字\n    **字。**后\n").length, 1);
 assert.deepEqual(findLiteralLines(["> ```", "> **字。**后", "> ```", "> **字。**后"]), [
   true,
   true,
@@ -306,15 +466,37 @@ assert.deepEqual(findLiteralLines("- $$\n  **中。**续\n  $$\n\n**文。**续\
 assert.deepEqual(findLiteralLines("---\nx: |\n  ```\n---\n**中。**续\n".split("\n")), [
   true, true, true, true, false, false,
 ]);
+assert.equal(findDocumentFixes("---\na: \"**字。**后\"\n\n---\n**字。**后\n").length, 1);
 assert.deepEqual(findLiteralLines("$$\n```\n$$\n```mermaid\n**中。**续\n```\n".split("\n")), [
   true, true, true, true, true, true, false,
 ]);
 
 // A fence belongs to the container it opened in.
 assert.deepEqual(findLiteralLines(["> ~~~", "**字。**后"]), [true, false]);
+assert.equal(findDocumentFixes("> ~~~\n**字。**后\n").length, 1);
+assert.equal(findDocumentFixes("> ~~~\n~~~\n**字。**后\n").length, 0);
+assert.equal(findDocumentFixes("~~~\n> ~~~\n**字。**后\n").length, 0);
 assert.deepEqual(findLiteralLines(["> > ~~~", "> **字。**后"]), [true, false]);
+assert.equal(findDocumentFixes("> > ~~~\n> **字。**后\n").length, 1);
 
+// List items: an indented continuation is prose, a fence inside an item is code.
+assert.equal(findDocumentFixes("- a\n\n    **字。**后\n").length, 1);
+assert.equal(findDocumentFixes("- a\n\n    - **字。**后\n").length, 1);
+assert.equal(findDocumentFixes("- ~~~\n  **字。**后\n").length, 0);
 
+// A backtick fence may not carry a backtick in its info string.
+assert.equal(findDocumentFixes("``` a`\n**字。**后\n").length, 0);
+
+// A closing backtick run is not escaped by a preceding backslash.
+assert.equal(findSourceFixes("`*字。*后\\`").length, 0);
+
+// Frontmatter and raw HTML are not prose.
+assert.equal(findDocumentFixes("---\na: \"**字。**后\"\n---\n**字。**后\n").length, 1);
+assert.equal(findDocumentFixes("<pre>\n**字。**后\n</pre>\n").length, 0);
+assert.equal(findDocumentFixes("<div>\n**字。**后\n</div>\n\n**字。**后\n").length, 0);
+
+// CRLF line endings.
+assert.equal(findDocumentFixes("~~~\r\nx\r\n~~~\r\n**字。**后").length, 1);
 
 // Obsidian reports emphasis inside a link as `em_link` spanning up to the
 // trailing text; that tail must be neutralised.
@@ -411,6 +593,19 @@ assert.deepEqual(
   ),
   [{ from: 8, to: 12 }],
 );
+
+// Every common Chinese punctuation mark, both for rendering and for the
+// optional source rewrite.
+const punctuation = [
+  "。", "、", "，", "；", "：", "！", "？", "）", "】", "》", "」", "』",
+  "…", "—", "～", "·", "“", "”", "‘", "’", "〈", "〔", "〖", "／", "．", "％", "＃",
+];
+for (const mark of punctuation) {
+  assert.deepEqual(kinds(`**文字${mark}**继续`), ["strong"], `render ${mark}`);
+  const fix = findSourceFixes(`**文字${mark}**继续`);
+  assert.equal(fix.length, 1, `fix ${mark}`);
+  assert.equal(fix[0].replacement, `**文字**${mark}`, `fix result ${mark}`);
+}
 
 // --- Review blockers: wiki barriers, math-owned backticks, frontmatter and
 // --- one deduplicated code-range resolver. -------------------------------
