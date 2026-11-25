@@ -53,9 +53,15 @@ export function isWhitespace(code: number | undefined): boolean {
   return code !== undefined && /\s/u.test(String.fromCodePoint(code));
 }
 
+const UNICODE_PUNCTUATION = /^\p{P}$/u;
+
 export function isPunctuation(code: number | undefined): boolean {
   if (code === undefined) return false;
-  return isAsciiPunctuation(code) || isFullwidthPunctuation(code);
+  if (isAsciiPunctuation(code) || isFullwidthPunctuation(code)) return true;
+  // The hand-written ranges above cover the characters Chinese text uses
+  // most, but not the whole punctuation category («, ［, …). CommonMark
+  // flanking depends on the full category, so fall back to it.
+  return UNICODE_PUNCTUATION.test(String.fromCodePoint(code));
 }
 
 export function isWhitespaceOrPunctuation(code: number | undefined): boolean {

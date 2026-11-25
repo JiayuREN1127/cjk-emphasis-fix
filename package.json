@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node esbuild.config.mjs",
     "build": "tsc --noEmit --skipLibCheck && node esbuild.config.mjs production",
-    "test": "node tests/scanner.test.mjs",
+    "test": "esbuild src/scanner.ts --bundle --format=esm --outfile=tests/scanner.bundle.mjs && node tests/scanner.test.mjs",
     "lint": "eslint src"
   },
   "keywords": [
@@ -21,6 +21,7 @@
     "@codemirror/state": "^6.5.4",
     "@codemirror/view": "^6.39.15",
     "@lezer/common": "^1.5.1",
+    "@lezer/markdown": "^1.8.1",
     "@types/node": "^16.11.6",
     "@typescript-eslint/eslint-plugin": "^8.72.1",
     "@typescript-eslint/parser": "^8.72.1",
