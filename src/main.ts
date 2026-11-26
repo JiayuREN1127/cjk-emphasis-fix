@@ -51,6 +51,9 @@ export default class CJKEmphasisFixPlugin extends Plugin {
 			id: "fix-current-note",
 			name: strings.commandFix,
 			checkCallback: (checking: boolean) => {
+				// Off by default: the command is only registered with Obsidian
+				// while the experimental source rewrite is enabled.
+				if (!this.settings.enableSourceRewrite) return false;
 				const view = this.app.workspace.getActiveViewOfType(MarkdownView);
 				if (!view) return false;
 				if (!checking) this.fixView(view, strings);
@@ -73,6 +76,10 @@ export default class CJKEmphasisFixPlugin extends Plugin {
 	}
 
 	fixView(view: MarkdownView, strings = t()): void {
+		if (!this.settings.enableSourceRewrite) {
+			new Notice(strings.noticeRewriteDisabled);
+			return;
+		}
 		const fixes = findDocumentFixes(view.data);
 		if (fixes.length === 0) {
 			new Notice(strings.noticeNoIssues);
@@ -134,6 +141,15 @@ class CJKEmphasisSettingTab extends PluginSettingTab {
 				},
 			},
 			{
+				name: strings.settingRewriteName,
+				desc: strings.settingRewriteDesc,
+				control: {
+					type: "toggle",
+					key: "enableSourceRewrite",
+					defaultValue: DEFAULT_SETTINGS.enableSourceRewrite,
+				},
+			},
+			{
 				name: strings.settingFixName,
 				desc: strings.settingFixDesc,
 				action: () => {
@@ -186,6 +202,18 @@ class CJKEmphasisSettingTab extends PluginSettingTab {
 					.setValue(this.plugin.settings.keepMarkersNearCursor)
 					.onChange(async (value) => {
 						this.plugin.settings.keepMarkersNearCursor = value;
+						await this.plugin.saveSettings();
+					}),
+			);
+
+		new Setting(containerEl)
+			.setName(strings.settingRewriteName)
+			.setDesc(strings.settingRewriteDesc)
+			.addToggle((toggle) =>
+				toggle
+					.setValue(this.plugin.settings.enableSourceRewrite)
+					.onChange(async (value) => {
+						this.plugin.settings.enableSourceRewrite = value;
 						await this.plugin.saveSettings();
 					}),
 			);

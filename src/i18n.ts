@@ -17,6 +17,10 @@ const en = {
   settingFixName: "Fix current note",
   settingFixDesc:
     "Rewrite `**text。**next` as `**text**。next` so the formatting also renders when exported or opened in other editors.",
+  settingRewriteName: "Enable source rewrite (experimental)",
+  settingRewriteDesc:
+    "Adds the commands that rewrite note text. Off by default. Known to misjudge complex multi-line structures such as links, HTML, YAML and fenced code, so back up the note first. The plugin never rewrites automatically; it only runs when you invoke the command or button.",
+  noticeRewriteDisabled: "Source rewrite is disabled. Enable it in settings first.",
   buttonFix: "Fix",
 };
 
@@ -37,6 +41,10 @@ const zh: typeof en = {
   settingFixName: "修复当前笔记",
   settingFixDesc:
     "把 `**文字。**继续` 改成 `**文字**。继续`，这样导出或换编辑器打开也能正常渲染。",
+  settingRewriteName: "启用源码改写（实验性）",
+  settingRewriteDesc:
+    "启用后会注册改写笔记原文的命令，默认关闭。已知会误判多行链接、HTML、YAML、围栏代码等复杂结构，使用前请先备份笔记。插件不会自动运行，只有你手动执行命令或点击按钮时才会改写。",
+  noticeRewriteDisabled: "源码改写未启用，请先在设置中打开。",
   buttonFix: "执行修复",
 };
 

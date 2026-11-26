@@ -27,6 +27,9 @@ jobs:
       - name: Lint against Obsidian API rules
         run: npm run lint
 
+      - name: Test
+        run: npm test
+
       - name: Build plugin
         run: npm run build
 
